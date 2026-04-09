@@ -21,17 +21,14 @@ const GenerateQuiz = () => {
   const [topic, setTopic] = useState("");
   const [language, setLanguage] = useState("English");
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState("");
   const navigate = useNavigate();
 
   const extractTextFromFile = async (f: File): Promise<string> => {
-    if (f.type === "text/plain") {
-      return await f.text();
-    }
-    // For PDFs and images, read as base64 and let AI interpret
+    if (f.type === "text/plain") return await f.text();
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => {
-        const base64 = (reader.result as string).split(",")[1];
         resolve(`[File: ${f.name}, type: ${f.type}]\nBase64 content provided for AI processing.`);
       };
       reader.readAsDataURL(f);
@@ -41,47 +38,43 @@ const GenerateQuiz = () => {
   const handleGenerate = async () => {
     let content = textContent;
     if (inputType !== "text") {
-      if (!file) {
-        toast.error("Please upload a file first!");
-        return;
-      }
+      if (!file) { toast.error("Please upload a file first!"); return; }
       content = await extractTextFromFile(file);
     }
-    if (!content.trim()) {
-      toast.error("Please provide some content!");
-      return;
-    }
+    if (!content.trim()) { toast.error("Please provide some content!"); return; }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-quiz", {
-        body: {
-          content,
-          numQuestions: parseInt(numQuestions),
-          difficulty,
-          questionType,
-          topic,
-          language,
-        },
+      // Step 1: Generate study overview
+      setLoadingStep("🤖 Analyzing your content...");
+      const { data: overviewData, error: overviewError } = await supabase.functions.invoke("generate-study-overview", {
+        body: { content, topic, language },
       });
+      if (overviewError) throw overviewError;
+      sessionStorage.setItem("studyOverview", JSON.stringify(overviewData));
 
-      if (error) throw error;
+      // Step 2: Generate quiz
+      setLoadingStep("✨ Generating quiz questions...");
+      const { data: quizData, error: quizError } = await supabase.functions.invoke("generate-quiz", {
+        body: { content, numQuestions: parseInt(numQuestions), difficulty, questionType, topic, language },
+      });
+      if (quizError) throw quizError;
 
-      // Store quiz data in sessionStorage for the quiz page
-      sessionStorage.setItem("currentQuiz", JSON.stringify(data));
-      navigate("/quiz");
+      sessionStorage.setItem("currentQuiz", JSON.stringify(quizData));
+      sessionStorage.setItem("quizTopic", topic || "General");
+      sessionStorage.setItem("quizDifficulty", difficulty);
+      sessionStorage.setItem("quizType", questionType);
+
+      navigate("/study-overview");
     } catch (err: any) {
       toast.error(err.message || "Failed to generate quiz");
     } finally {
       setLoading(false);
+      setLoadingStep("");
     }
   };
 
-  const handleClear = () => {
-    setTextContent("");
-    setFile(null);
-    setTopic("");
-  };
+  const handleClear = () => { setTextContent(""); setFile(null); setTopic(""); };
 
   return (
     <DashboardLayout>
@@ -91,45 +84,33 @@ const GenerateQuiz = () => {
           <p className="text-muted-foreground mb-8">Upload content and let AI create the perfect quiz for you.</p>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-card rounded-2xl shadow-card border border-border p-6 space-y-6"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          className="bg-card rounded-2xl shadow-card border border-border p-6 space-y-6">
+
           {/* Input Type */}
           <div>
             <Label className="mb-2 block">Input Type</Label>
             <div className="flex gap-2">
-              {[
+              {([
                 { type: "text" as const, icon: Type, label: "Text" },
                 { type: "pdf" as const, icon: FileText, label: "PDF" },
                 { type: "image" as const, icon: Image, label: "Image" },
-              ].map((t) => (
-                <Button
-                  key={t.type}
-                  variant={inputType === t.type ? "default" : "outline"}
+              ]).map((t) => (
+                <Button key={t.type} variant={inputType === t.type ? "default" : "outline"}
                   className={inputType === t.type ? "gradient-primary text-primary-foreground" : ""}
-                  onClick={() => setInputType(t.type)}
-                >
-                  <t.icon size={16} className="mr-1" />
-                  {t.label}
+                  onClick={() => setInputType(t.type)}>
+                  <t.icon size={16} className="mr-1" />{t.label}
                 </Button>
               ))}
             </div>
           </div>
 
-          {/* Content Input */}
+          {/* Content */}
           {inputType === "text" ? (
             <div>
               <Label htmlFor="content">Paste your content</Label>
-              <Textarea
-                id="content"
-                placeholder="Paste your study notes, article, or any text here..."
-                value={textContent}
-                onChange={(e) => setTextContent(e.target.value)}
-                className="min-h-[150px] mt-1"
-              />
+              <Textarea id="content" placeholder="Paste your study notes, article, or any text here..."
+                value={textContent} onChange={(e) => setTextContent(e.target.value)} className="min-h-[150px] mt-1" />
             </div>
           ) : (
             <div>
@@ -139,12 +120,8 @@ const GenerateQuiz = () => {
                 <p className="text-sm text-muted-foreground mb-2">
                   {file ? file.name : `Click or drag to upload ${inputType === "pdf" ? "a PDF" : "an image"}`}
                 </p>
-                <Input
-                  type="file"
-                  accept={inputType === "pdf" ? ".pdf,.txt" : "image/*"}
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="max-w-xs mx-auto"
-                />
+                <Input type="file" accept={inputType === "pdf" ? ".pdf,.txt" : "image/*"}
+                  onChange={(e) => setFile(e.target.files?.[0] || null)} className="max-w-xs mx-auto" />
               </div>
             </div>
           )}
@@ -155,11 +132,7 @@ const GenerateQuiz = () => {
               <Label>Number of Questions</Label>
               <Select value={numQuestions} onValueChange={setNumQuestions}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["3", "5", "10", "15", "20"].map((n) => (
-                    <SelectItem key={n} value={n}>{n}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{["3","5","10","15","20"].map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
@@ -190,7 +163,7 @@ const GenerateQuiz = () => {
               <Select value={language} onValueChange={setLanguage}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["English", "Spanish", "French", "German", "Hindi", "Arabic", "Chinese", "Japanese"].map((l) => (
+                  {["English","Spanish","French","German","Hindi","Arabic","Chinese","Japanese"].map((l) => (
                     <SelectItem key={l} value={l}>{l}</SelectItem>
                   ))}
                 </SelectContent>
@@ -205,21 +178,11 @@ const GenerateQuiz = () => {
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
-              onClick={handleGenerate}
-              disabled={loading}
-              className="flex-1 gradient-primary text-primary-foreground"
-            >
+            <Button onClick={handleGenerate} disabled={loading} className="flex-1 gradient-primary text-primary-foreground">
               {loading ? (
-                <>
-                  <Loader2 className="mr-2 animate-spin" size={18} />
-                  Generating...
-                </>
+                <><Loader2 className="mr-2 animate-spin" size={18} />{loadingStep || "Generating..."}</>
               ) : (
-                <>
-                  <Sparkles className="mr-2" size={18} />
-                  Generate Quiz
-                </>
+                <><Sparkles className="mr-2" size={18} />Generate Quiz</>
               )}
             </Button>
             <Button variant="outline" onClick={handleClear}>Clear</Button>
