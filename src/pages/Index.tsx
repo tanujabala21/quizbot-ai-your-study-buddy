@@ -1,2 +1,2 @@
-// Landing page redirects to Landing component
-export { default } from "./Landing";
+import Landing from "./Landing";
+export default Landing;
