@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
 import GenerateQuiz from "./pages/GenerateQuiz";
+import StudyOverview from "./pages/StudyOverview";
 import QuizPage from "./pages/QuizPage";
 import Results from "./pages/Results";
 import QuizHistory from "./pages/QuizHistory";
