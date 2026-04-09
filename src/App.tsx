@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
 import GenerateQuiz from "./pages/GenerateQuiz";
+import StudyOverview from "./pages/StudyOverview";
 import QuizPage from "./pages/QuizPage";
 import Results from "./pages/Results";
 import QuizHistory from "./pages/QuizHistory";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/signup" element={<SignUp />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/generate" element={<ProtectedRoute><GenerateQuiz /></ProtectedRoute>} />
+          <Route path="/study-overview" element={<ProtectedRoute><StudyOverview /></ProtectedRoute>} />
           <Route path="/quiz" element={<ProtectedRoute><QuizPage /></ProtectedRoute>} />
           <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><QuizHistory /></ProtectedRoute>} />
