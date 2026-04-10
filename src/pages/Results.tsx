@@ -92,11 +92,22 @@ const Results = () => {
   const reaction = getReaction(pct);
   const formatTime = (s: number) => `${Math.floor(s / 60)}m ${s % 60}s`;
 
+  // Check if a topic string is usable (not generic or a sentence)
+  const isValidTopic = (t: string): boolean => {
+    if (!t || !t.trim()) return false;
+    const lower = t.trim().toLowerCase();
+    const generic = ["general", "misc", "miscellaneous", "other", "n/a", "none", "unknown", "topic"];
+    if (generic.includes(lower)) return false;
+    // If it's longer than 40 chars or has more than 5 words, it's likely a sentence
+    if (lower.length > 40 || lower.split(/\s+/).length > 5) return false;
+    return true;
+  };
+
   // Infer topic from question text if missing
   const inferTopic = (question: string): string => {
     const keywords: Record<string, string[]> = {
       "Arrays": ["array", "list", "element", "index"],
-      "Sorting": ["sort", "bubble", "merge", "quick", "insertion", "selection"],
+      "Sorting": ["sort", "bubble", "merge sort", "quick sort", "insertion sort", "selection sort"],
       "Recursion": ["recurs", "base case", "call stack"],
       "Dynamic Programming": ["dynamic programming", "memoiz", "tabulation", "subproblem"],
       "Strings": ["string", "substring", "character", "concatenat"],
@@ -105,6 +116,10 @@ const Results = () => {
       "OOP": ["class", "object", "inherit", "polymorphism", "encapsulat"],
       "Data Structures": ["stack", "queue", "linked list", "tree", "graph", "hash"],
       "Mathematics": ["math", "formula", "equation", "calcul", "theorem"],
+      "Python Basics": ["python", "print", "input", "variable", "data type"],
+      "Databases": ["sql", "database", "query", "table", "join"],
+      "Networking": ["network", "protocol", "tcp", "ip", "http"],
+      "Operating Systems": ["process", "thread", "memory management", "scheduling"],
     };
     const lower = question.toLowerCase();
     for (const [topic, words] of Object.entries(keywords)) {
@@ -116,10 +131,8 @@ const Results = () => {
   // Compute topic-wise performance
   const topicMap = new Map<string, { correct: number; wrong: number }>();
   results.questions.forEach((q, i) => {
-    let topic = q.topic && q.topic.trim() && q.topic.trim().toLowerCase() !== "general"
-      ? q.topic.trim()
-      : inferTopic(q.question);
-    if (!topic) return; // skip questions with no discernible topic
+    let topic = isValidTopic(q.topic || "") ? q.topic!.trim() : inferTopic(q.question);
+    if (!topic) return;
     const entry = topicMap.get(topic) || { correct: 0, wrong: 0 };
     if (results.answers[i] === q.correct_answer) entry.correct++;
     else entry.wrong++;
