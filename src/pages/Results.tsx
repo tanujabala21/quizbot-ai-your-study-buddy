@@ -92,24 +92,52 @@ const Results = () => {
   const reaction = getReaction(pct);
   const formatTime = (s: number) => `${Math.floor(s / 60)}m ${s % 60}s`;
 
+  // Infer topic from question text if missing
+  const inferTopic = (question: string): string => {
+    const keywords: Record<string, string[]> = {
+      "Arrays": ["array", "list", "element", "index"],
+      "Sorting": ["sort", "bubble", "merge", "quick", "insertion", "selection"],
+      "Recursion": ["recurs", "base case", "call stack"],
+      "Dynamic Programming": ["dynamic programming", "memoiz", "tabulation", "subproblem"],
+      "Strings": ["string", "substring", "character", "concatenat"],
+      "Loops": ["loop", "for loop", "while loop", "iteration", "iterate"],
+      "Functions": ["function", "parameter", "argument", "return value"],
+      "OOP": ["class", "object", "inherit", "polymorphism", "encapsulat"],
+      "Data Structures": ["stack", "queue", "linked list", "tree", "graph", "hash"],
+      "Mathematics": ["math", "formula", "equation", "calcul", "theorem"],
+    };
+    const lower = question.toLowerCase();
+    for (const [topic, words] of Object.entries(keywords)) {
+      if (words.some((w) => lower.includes(w))) return topic;
+    }
+    return "";
+  };
+
   // Compute topic-wise performance
-  const topicMap = new Map<string, { correct: number; total: number }>();
+  const topicMap = new Map<string, { correct: number; wrong: number }>();
   results.questions.forEach((q, i) => {
-    const topic = q.topic || "General";
-    const entry = topicMap.get(topic) || { correct: 0, total: 0 };
-    entry.total++;
+    let topic = q.topic && q.topic.trim() && q.topic.trim().toLowerCase() !== "general"
+      ? q.topic.trim()
+      : inferTopic(q.question);
+    if (!topic) return; // skip questions with no discernible topic
+    const entry = topicMap.get(topic) || { correct: 0, wrong: 0 };
     if (results.answers[i] === q.correct_answer) entry.correct++;
+    else entry.wrong++;
     topicMap.set(topic, entry);
   });
   const topicData = Array.from(topicMap.entries()).map(([name, d]) => ({
     name: name.length > 15 ? name.slice(0, 15) + "…" : name,
-    score: Math.round((d.correct / d.total) * 100),
+    score: Math.round((d.correct / (d.correct + d.wrong)) * 100),
     correct: d.correct,
-    total: d.total,
+    total: d.correct + d.wrong,
   }));
 
-  const strongAreas = topicData.filter((t) => t.score >= 70).map((t) => t.name);
-  const weakAreas = topicData.filter((t) => t.score < 70).map((t) => t.name);
+  const strongAreas = Array.from(topicMap.entries())
+    .filter(([, d]) => d.correct > d.wrong)
+    .map(([name]) => name);
+  const weakAreas = Array.from(topicMap.entries())
+    .filter(([, d]) => d.wrong >= d.correct)
+    .map(([name]) => name);
 
   const pieData = [
     { name: "Correct", value: results.score },
